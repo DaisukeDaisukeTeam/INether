@@ -100,7 +100,7 @@ class Main extends PluginBase
 		self::$instance = $this;
 		$this->saveResource("config.yml");
 		$this->config = new CustomConfig(new Config($this->getDataFolder() . "config.yml", Config::YAML));
-		self::initializeRuntimeIds();
+		self::initializeRuntimeIds($this->getFile()."/resources/block_id_map.json");
 		$this->initBlocks();
 		$this->initTiles();
 		$this->initItems();
@@ -109,12 +109,18 @@ class Main extends PluginBase
 	protected function onEnable(): void
 	{ //credits https://github.com/cladevs/VanillaX
 		Server::getInstance()->getPluginManager()->registerEvents(new EventListener(), $this);
-		Server::getInstance()->getAsyncPool()->addWorkerStartHook(function (int $worker): void {
-			Server::getInstance()->getAsyncPool()->submitTaskToWorker(new class() extends AsyncTask {
+		$path = $this->getFile()."/resources/block_id_map.json";
+
+		Server::getInstance()->getAsyncPool()->addWorkerStartHook(function (int $worker) use ($path): void {
+			Server::getInstance()->getAsyncPool()->submitTaskToWorker(new class($path) extends AsyncTask {
+				public function __construct(
+					private string $path
+				){
+				}
 
 				public function onRun(): void
 				{
-					Main::initializeRuntimeIds();
+					Main::initializeRuntimeIds($this->path);
 				}
 			}, $worker);
 		});
@@ -131,13 +137,13 @@ class Main extends PluginBase
 		return $this->config;
 	}
 
-	public static function initializeRuntimeIds(): void
+	public static function initializeRuntimeIds(string $path): void
 	{
 		$instance = RuntimeBlockMapping::getInstance();
 		$method = new ReflectionMethod(RuntimeBlockMapping::class, "registerMapping");
 		$method->setAccessible(true);
 
-		$blockIdMap = json_decode(file_get_contents(BEDROCK_DATA_PATH . 'block_id_map.json'), true);
+		$blockIdMap = json_decode(file_get_contents($path), true);
 		$metaMap = [];
 
 		foreach ($instance->getBedrockKnownStates() as $runtimeId => $nbt) {
